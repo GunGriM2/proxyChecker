@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use GuzzleHttp\Client;
@@ -10,114 +12,73 @@ use GuzzleHttp\TransferStats;
 
 class ProxyCheckService
 {
+    private $targetUrl;
+    private $client;
+
+    public function __construct()
+    {
+        $this->client = new Client([RequestOptions::TIMEOUT => 10]);
+        $this->targetUrl = 'http://ip-api.com/json';
+    }
+
     public function checkProxy(string $proxy): array
     {
         if (!$this->isValidProxy($proxy)) {
-            return [
-                'proxy'  => $proxy,
-                'status' => false
-            ];
+            return $this->formatResult($proxy, false);
         }
 
-        [$ip, $port] = explode(':', $proxy);
+        $result = $this->checkProxyConnection($proxy, 'http');
 
-        $client = new Client([RequestOptions::TIMEOUT => 10]);
-        $targetUrl = 'http://ip-api.com/json';
+        if (!$result['status']) {
+            $result = $this->checkProxyConnection($proxy, 'socks5');
+        }
 
-        $type = null;
-        $city = null;
-        $status = false;
+        return $result;
+    }
+
+    private function checkProxyConnection(string $proxy, string $type): array
+    {
         $speed = null;
 
-        $httpFailed = false;
-        $socksFailed = false;
-
-        // Пытаемся проверить прокси через HTTP
         try {
-            $response = $client->get($targetUrl, [
-                RequestOptions::PROXY => 'http://' . $proxy,
+            $response = $this->client->get($this->targetUrl, [
+                RequestOptions::PROXY => "{$type}://{$proxy}",
                 RequestOptions::VERIFY => false,
                 RequestOptions::ON_STATS => function (TransferStats $stats) use (&$speed) {
-                    $speed = $stats->getHandlerStat('speed_download');
+                    $speed = $this->calculateSpeed($stats->getHandlerStat('speed_download'));
                 }
             ]);
 
-            if ($response->getStatusCode() === 200) {
-                $data = json_decode($response->getBody());
+            $data = json_decode($response->getBody()->getContents());
 
-                if ($data->query === $ip) {
-                    debug($speed);
-                    $speed = $speed * 8 / 1024;
-
-                    $status = true;
-                    $type = 'http';
-                    $city = $data->city;
-                    $speed = round($speed, 2) . ' kbps';
-                } else {
-                    $httpFailed = true;
-                }
-
-                debug($data);
-            } else {
-                $httpFailed = true;
+            if ($response->getStatusCode() === 200 && $data->query === explode(':', $proxy)[0]) {
+                return $this->formatResult($proxy, true, $type, $data->city, $speed);
             }
         } catch (GuzzleException $e) {
-            debug($e->getMessage());
-            $httpFailed = true;
+
         }
 
+        return $this->formatResult($proxy, false);
+    }
 
-        if ($httpFailed) {
-            try {
-                $response = $client->get($targetUrl, [
-                    RequestOptions::PROXY => 'socks5://' . $proxy,
-                    RequestOptions::VERIFY => false,
-                    RequestOptions::ON_STATS => function (TransferStats $stats) use (&$speed) {
-                        $speed = $stats->getHandlerStat('speed_download');
-                    }
-                ]);
+    private function calculateSpeed(?float $speed): ?string
+    {
+        return $speed ? round(($speed * 8) / 1024, 2) . ' kbps' : null;
+    }
 
-                if ($response->getStatusCode() === 200) {
-                    $data = json_decode($response->getBody());
-
-                    if ($data->query === $ip) {
-                        debug($speed);
-                        $speed = $speed * 8 / 1024;
-
-                        $status = true;
-                        $type = 'socks';
-                        $city = $data->city;
-                        $speed = round($speed, 2) . ' kbps';
-                    } else {
-                        $socksFailed = true;
-                    }
-                    debug($data);
-                } else {
-                    $socksFailed = true;
-                }
-            } catch (GuzzleException $e) {
-                debug($e->getMessage());
-                $socksFailed = true;
-            }
-        }
-
-        if ($httpFailed && $socksFailed) {
-            $status = false;
-            $type = null;
-        }
-
+    private function formatResult(string $proxy, bool $status, string $type = null, string $city = null, string $speed = null): array
+    {
         return [
-            'status' => $status,
             'proxy' => $proxy,
-            'city' => $city,
+            'status' => $status,
             'type' => $type,
+            'city' => $city,
             'speed' => $speed,
         ];
     }
 
     private function isValidProxy(string $proxy): bool
     {
-        // Проверяем, соответствует ли строка формату IP:PORT
-        return preg_match('/^(\d{1,3}\.){3}\d{1,3}:\d{1,5}$/', trim($proxy));
+        return (bool) preg_match('/^(\d{1,3}\.){3}\d{1,3}:\d{1,5}$/', trim($proxy));
     }
 }
