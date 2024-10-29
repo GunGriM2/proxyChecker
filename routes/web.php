@@ -1,5 +1,6 @@
 <?php
 
+use App\ProxyCheck;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,5 +19,14 @@ Route::get('/', function () {
 });
 
 Route::get('/history', function () {
-   return view('checkHistory');
+    $proxyChecks = ProxyCheck::with('proxyResults')->latest()->get();
+
+    return view('checkHistory', compact('proxyChecks'));
 });
+
+Route::get('/history/{id}', function ($id) {
+    $proxyCheck = ProxyCheck::with('proxyResults')->findOrFail($id);
+
+    return view('checkHistoryDetails', compact('proxyCheck'));
+})->name('check.details');
+
