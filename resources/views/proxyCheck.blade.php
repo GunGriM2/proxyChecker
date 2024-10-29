@@ -16,6 +16,10 @@
             resize: vertical;
         }
 
+        p {
+            margin-bottom: 0.5rem;
+        }
+
         .container {
             max-width: 700px;
             margin: 0 auto;
@@ -65,7 +69,19 @@
             if (response.ok) {
                 resultsDiv.style.display = 'block';
                 resultsDiv.innerHTML = '<h4>Результаты:</h4>' +
-                    data.results.map(result => `<p>${result}</p>`).join('');
+                    data.results.map(result => `
+                        <div style="margin-bottom: 10px; border-bottom: 1px solid #ddd; padding: 5px;">
+                            <p><strong>Прокси:</strong> ${result.proxy}</p>
+                            <p><strong>Тип:</strong> ${result.type ?? ''}</p>
+                            <p><strong>Город:</strong> ${result.city ?? ''}</p>
+                            <p><strong>Статус:</strong>
+                                <span style="color: ${result.status ? 'green' : 'red'};">
+                                    ${result.status ? 'Активен' : 'Неактивен'}
+                                </span>
+                            </p>
+                            <p><strong>Скорость:</strong> ${result.speed ?? ''}</p>
+                        </div>
+                    `).join('');
             } else {
                 resultsDiv.style.display = 'block';
                 resultsDiv.innerHTML = `<p style="color:red;">Ошибка: ${data.message}</p>`;

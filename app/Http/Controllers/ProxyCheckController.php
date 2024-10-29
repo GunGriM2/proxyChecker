@@ -17,15 +17,19 @@ class ProxyCheckController extends Controller
     }
 
     public function check(Request $request) {
+        $request->validate([
+            'proxies' => 'required|string',
+        ]);
+
         $proxies = explode("\n", $request->input('proxies'));
         debug($proxies);
         $results = [];
 
         foreach ($proxies as $proxy) {
-            $data = $this->proxyCheckService->checkProxy($proxy);
-            $results[] = $proxy . ' - ' . print_r($data, true);
+            $proxyData = $this->proxyCheckService->checkProxy($proxy);
+            $results[] = $proxyData;
         }
 
-        return response()->json(['results' => $results]);
+        return response()->json(['success' => true, 'results' => $results]);
     }
 }
