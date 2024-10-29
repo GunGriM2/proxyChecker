@@ -103,7 +103,6 @@ class ProxyCheckService
             CheckProxyJob::dispatch($proxyResult);
         }
 
-        // Ждем завершения всех заданий
         $this->waitForCompletion($proxyCheck->id);
 
         // Общая проверка закончена
