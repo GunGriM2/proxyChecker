@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\CheckProxyJob;
+use App\ProxyCheck;
+use App\ProxyResult;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\RequestOptions;
 use GuzzleHttp\TransferStats;
+use Illuminate\Support\Collection;
 
 class ProxyCheckService
 {
@@ -80,5 +84,60 @@ class ProxyCheckService
     private function isValidProxy(string $proxy): bool
     {
         return (bool) preg_match('/^(\d{1,3}\.){3}\d{1,3}:\d{1,5}$/', trim($proxy));
+    }
+
+    public function handleProxies(array $proxies)
+    {
+        // Создаем запись для общей проверки
+        $proxyCheck = ProxyCheck::create(['status' => 'pending']);
+        $proxyResults = [];
+
+        // Создаем записи для результата проверки каждого прокси
+        foreach ($proxies as $proxy) {
+            $proxyResult = ProxyResult::create(['proxy' => $proxy, 'proxy_check_id' => $proxyCheck->id, 'status' => false, 'completed' => false]);
+            $proxyResults[] = $proxyResult;
+        }
+
+        // Запускаем джобы для каждого прокси
+        foreach ($proxyResults as $proxyResult) {
+            CheckProxyJob::dispatch($proxyResult);
+        }
+
+        // Ждем завершения всех заданий
+        $this->waitForCompletion($proxyCheck->id);
+
+        // Общая проверка закончена
+        $proxyCheck->completed = true;
+        $proxyCheck->save();
+
+        return $proxyCheck->id;
+    }
+
+    private function waitForCompletion(int $proxyCheckId)
+    {
+        while (true) {
+            $completedCount = ProxyResult::where('proxy_check_id', $proxyCheckId)
+                ->where('completed', true)
+                ->count();
+            $totalCount = ProxyResult::where('proxy_check_id', $proxyCheckId)
+                ->count();
+
+            if ($totalCount === 0 || $completedCount === $totalCount) {
+                break;
+            }
+
+            sleep(1);
+        }
+    }
+
+    public function getProxyStats(Collection $results): array
+    {
+        $proxyCount = $results->count();
+        $activeProxyCount = $results->where('status', true)->count();
+
+        return [
+            'count' => $proxyCount,
+            'active_count' => $activeProxyCount,
+        ];
     }
 }
