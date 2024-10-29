@@ -24,9 +24,7 @@ Route::get('/history', function () {
     return view('checkHistory', compact('proxyChecks'));
 });
 
-Route::get('/history/{id}', function ($id) {
-    $proxyCheck = ProxyCheck::with('proxyResults')->findOrFail($id);
-
+Route::get('/history/{proxyCheck}', function (ProxyCheck $proxyCheck) {
     return view('checkHistoryDetails', compact('proxyCheck'));
 })->name('check.details');
 
