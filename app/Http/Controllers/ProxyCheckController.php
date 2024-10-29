@@ -30,6 +30,16 @@ class ProxyCheckController extends Controller
             $results[] = $proxyData;
         }
 
-        return response()->json(['success' => true, 'results' => $results]);
+        $proxyCount = count($proxies);
+        $activeProxyCount = array_reduce($results, function ($count, $proxyData) {
+            return $count + ($proxyData['status'] ? 1 : 0);
+        }, 0);
+
+        $stats = [
+            'count' => $proxyCount,
+            'active_count' => $activeProxyCount,
+        ];
+
+        return response()->json(['success' => true, 'results' => $results, 'stats' => $stats]);
     }
 }

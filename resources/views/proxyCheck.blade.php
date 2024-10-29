@@ -82,6 +82,17 @@
                             <p><strong>Скорость:</strong> ${result.speed ?? ''}</p>
                         </div>
                     `).join('');
+
+                // Статистики
+                const stats = `
+                    <div id="stats" style="margin-top: 20px; padding-top: 10px; border-top: 2px solid #ddd;">
+                        <h4>Статистика:</h4>
+                        <p><strong>Всего проверено прокси:</strong> ${data.stats.count}</p>
+                        <p><strong>Активных прокси:</strong> ${data.stats.active_count}</p>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML += stats; // Добавляем статистику к результатам
             } else {
                 resultsDiv.style.display = 'block';
                 resultsDiv.innerHTML = `<p style="color:red;">Ошибка: ${data.message}</p>`;
